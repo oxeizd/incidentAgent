@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Agent — Анализ инцидентов</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+</head>
+<body>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <button class="new-chat-btn" id="newChatBtn" type="button">
+          <span>✨</span><span>Новый чат</span>
+        </button>
+      </div>
+      <div class="view-tabs">
+        <button class="view-tab active" type="button" data-view="chat">💬 Чат</button>
+        <button class="view-tab" type="button" data-view="mine">🗂️ Мои презентации</button>
+        <button class="view-tab" type="button" data-view="shared">🌐 Общее хранилище</button>
+      </div>
+      <div class="sidebar-list" id="threadList"></div>
+    </div>
+    <div class="main-area">
+      <div class="top-bar">
+        <div></div>
+        <div class="thread-id" id="threadIdLabel">
+          <span id="threadIdText">—</span>
+        </div>
+      </div>
+
+      <div class="chat-view" id="chatView">
+        <div class="messages" id="messages">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-state-icon">💬</div>
+            <div class="empty-state-text">Начните новый диалог</div>
+            <div class="empty-state-hint">Задайте вопрос об инциденте или опишите проблему</div>
+          </div>
+        </div>
+
+        <div class="input-container" id="composer">
+          <textarea
+            id="messageInput"
+            placeholder="Введите сообщение... (Enter для отправки, Shift+Enter для новой строки)"
+            rows="1"
+          ></textarea>
+          <div id="interactiveInputSlot" class="interactive-input-slot" hidden></div>
+          <button id="sendBtn" type="button">📤 Отправить</button>
+        </div>
+      </div>
+
+      <div class="gallery-view" id="galleryView" style="display:none;"></div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+version: 1
+
+defaults:
+  page_size: 50
+  max_page_size: 200
+  preview_items: 10
+  timestamp_format: "%d.%m.%Y %H:%M"
+  date_format: "%d.%m.%Y"
+  null_value: "—"
+
+incidents:
+  chat:
+    title: "Инциденты"
+    fields:
+      - key: number
+        label: "№"
+        required: true
+      - key: start_time
+        label: "Регистрация"
+        format: datetime
+      - key: priority_code
+        label: "Приоритет"
+      - key: status
+        label: "Статус"
+      - key: system_name
+        label: "Система"
+      - key: work_group
+        label: "Группа"
+      - key: reason_inc
+        label: "Описание"
+        truncate: 180
+
+  analysis:
+    fields:
+      - number
+      - start_time
+      - end_time
+      - status
+      - priority_code
+      - resolution_code
+      - system_name
+      - element_name
+      - work_group
+      - reason_inc
+      - mttd
+      - mttr
+      - downtime
+
+  export:
+    fields:
+      - number
+      - start_time
+      - end_time
+      - status
+      - priority_code
+      - resolution_code
+      - system_name
+      - element_name
+      - work_group
+      - created_by
+      - executor_name
+      - registration_basis
+      - inc_type
+      - stand
+      - reason_inc
+      - mttd
+      - mttr
+      - downtime
+
+assignments:
+  chat:
+    title: "Поручения"
+    fields:
+      - key: incident_id
+        label: "Инцидент"
+      - key: task
+        label: "Задача"
+      - key: assignment
+        label: "Поручение"
+        truncate: 180
+      - key: responsible
+        label: "Ответственный"
+      - key: unit
+        label: "Подразделение"
+      - key: deadline
+        label: "Срок"
+        format: date
+      - key: date
+        label: "Дата поручения"
+        format: date
+      - key: ior
+        label: "ИОР"
+
+  analysis:
+    fields:
+      - id
+      - incident_id
+      - task
+      - assignment
+      - unit
+      - responsible
+      - deadline
+      - date
+      - ior
+
+  export:
+    fields:
+      - id
+      - incident_id
+      - task
+      - assignment
+      - unit
+      - responsible
+      - deadline
+      - date
+      - ior
