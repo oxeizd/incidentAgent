@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent — Анализ инцидентов</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+    <style>
+        :root {
+            /* === Modern Design System Tokens === */
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-tertiary: #1a2332;
+            --bg-card: #151c2c;
+            --border-color: #1e2a3a;
+            --border-hover: #2d3a4f;
+            --text-primary: #f0f4f8;
+            --text-secondary: #8899aa;
+            --text-muted: #5a6a7a;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            --accent-gradient-hover: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+            --danger: #ef4444;
+            --danger-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            --success: #10b981;
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+            --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+            --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.25s ease;
+            --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* === Custom Scrollbars === */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: #2d3a4f transparent;
+        }
+        *::-webkit-scrollbar { width: 8px; height: 8px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        *::-webkit-scrollbar-thumb {
+            background: #2d3a4f;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            transition: background var(--transition-fast);
+        }
+        *::-webkit-scrollbar-thumb:hover { 
+            background: #3d4f6f; 
+            background-clip: padding-box; 
+            border: 2px solid transparent; 
+        }
+        *::-webkit-scrollbar-thumb:active { 
+            background: #3b82f6; 
+            background-clip: padding-box; 
+            border: 2px solid transparent; 
+        }
+        *::-webkit-scrollbar-corner { background: transparent; }
+
+        /* === Body & Layout === */
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+            background: var(--bg-primary); 
+            color: var(--text-primary); 
+            height: 100vh; 
+            display: flex;
+            overflow: hidden;
+        }
+
+        .layout { 
+            display: flex; 
+            width: 100%; 
+            height: 100vh; 
+            padding: 16px; 
+            gap: 16px;
+        }
+
+        /* === Sidebar === */
+        .sidebar { 
+            width: 280px; 
+            min-width: 280px; 
+            background: var(--bg-secondary); 
+            border: 1px solid var(--border-color); 
+            border-radius: var(--radius-lg); 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            transition: box-shadow var(--transition-normal);
+        }
+        .sidebar:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .sidebar-header { 
+            padding: 16px; 
+            border-bottom: 1px solid var(--border-color); 
+        }
+
+        .new-chat-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            white-space: nowrap;
+            width: 100%;
+        }
+        .new-chat-btn:hover { 
+            background: var(--border-color);
+            border-color: var(--border-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
+        }
+        .new-chat-btn:active {
+            transform: translateY(0);
+        }
+
+        .sidebar-list { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 8px; 
+        }
+
+        .sidebar-item { 
+            padding: 12px 14px; 
+            border-radius: var(--radius-sm); 
+            cursor: pointer; 
+            font-size: 0.8rem; 
+            margin-bottom: 4px; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            border: 1px solid transparent; 
+            transition: all var(--transition-fast); 
+            word-break: break-all; 
+            user-select: none; 
+            position: relative;
+        }
+        .sidebar-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 0;
+            background: var(--accent-gradient);
+            border-radius: 0 2px 2px 0;
+            transition: height var(--transition-normal);
+        }
+        .sidebar-item:active { 
+            background: var(--bg-tertiary); 
+        }
+        .sidebar-item:hover { 
+            background: var(--bg-tertiary); 
+            border-color: var(--border-color);
+        }
+        .sidebar-item.active { 
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.15) 0%, transparent 100%);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+        .sidebar-item.active::before {
+            height: 60%;
+        }
+        .sidebar-item .thread-icon { 
+            font-size: 0.85rem; 
+            opacity: 0.7; 
+            flex-shrink: 0;
+        }
+        .sidebar-item-name { 
+            flex: 1; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap; 
+            cursor: pointer; 
+            min-width: 0;
+            color: var(--text-secondary);
+        }
+        .sidebar-item.active .sidebar-item-name {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        .sidebar-del-btn { 
+            flex-shrink: 0; 
+            background: none; 
+            border: none; 
+            color: var(--text-muted); 
+            cursor: pointer; 
+            font-size: 0.75rem; 
+            padding: 4px 6px; 
+            border-radius: 6px; 
+            line-height: 1; 
+            opacity: 0; 
+            transition: all var(--transition-fast); 
+        }
+        .sidebar-item:hover .sidebar-del-btn { 
+            opacity: 1; 
+        }
+        .sidebar-del-btn:hover { 
+            color: var(--danger); 
+            background: rgba(239, 68, 68, 0.15); 
+        }
+
+        /* === Main Area === */
+        .main-area { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            min-width: 0; 
+            overflow: hidden; 
+        }
+
+        /* === Top Bar === */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            gap: 12px;
+            flex-wrap: nowrap;
+        }
+
+        .thread-id { 
+            background: var(--bg-secondary); 
+            padding: 8px 16px; 
+            border-radius: 50px; 
+            font-size: 0.75rem; 
+            font-family: 'JetBrains Mono', monospace; 
+            border: 1px solid var(--border-color); 
+            display: flex; 
+            align-items: center; 
+            gap: 8px;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-normal);
+        }
+        .thread-id:hover {
+            border-color: var(--border-hover);
+            box-shadow: var(--shadow-md);
+        }
+        .thread-id .export-btn { 
+            background: none; 
+            border: none; 
+            color: var(--text-muted); 
+            cursor: pointer; 
+            font-size: 1rem; 
+            padding: 2px 6px; 
+            border-radius: 6px; 
+            transition: all var(--transition-fast); 
+            display: inline-flex; 
+            align-items: center; 
+            line-height: 1; 
+        }
+        .thread-id .export-btn:hover { 
+            color: var(--text-primary); 
+            background: var(--bg-tertiary);
+        }
+
+        /* === Messages Container === */
+        .messages { 
+            flex: 1; 
+            overflow-y: auto; 
+            background: var(--bg-secondary); 
+            border-radius: var(--radius-lg); 
+            border: 1px solid var(--border-color); 
+            padding: 24px; 
+            margin-bottom: 16px; 
+            scroll-behavior: smooth;
+            box-shadow: inset var(--shadow-sm);
+        }
+
+        .message { 
+            margin-bottom: 24px; 
+            animation: fadeInUp 0.3s ease; 
+        }
+        .message.user { 
+            display: flex; 
+            justify-content: flex-end; 
+        }
+
+        .message-content { 
+            display: inline-block; 
+            max-width: 85%; 
+            padding: 14px 20px; 
+            border-radius: var(--radius-xl); 
+            word-wrap: break-word; 
+            overflow-wrap: break-word;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-normal);
+        }
+        .message-content:hover {
+            box-shadow: var(--shadow-md);
+        }
+        .message.user .message-content { 
+            background: var(--accent-gradient); 
+            color: white; 
+            border-bottom-right-radius: 6px;
+        }
+        .message.assistant .message-content { 
+            background: var(--bg-tertiary); 
+            border: 1px solid var(--border-color); 
+            border-bottom-left-radius: 6px; 
+        }
+
+        /* === Markdown Body === */
+        .markdown-body { 
+            line-height: 1.7; 
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+        .markdown-body > *:first-child { margin-top: 0; }
+        .markdown-body > *:last-child { margin-bottom: 0; }
+        .markdown-body p { margin: 10px 0; }
+        .markdown-body ul, .markdown-body ol { 
+            margin: 10px 0; 
+            padding-left: 24px; 
+        }
+        .markdown-body li { 
+            margin: 5px 0; 
+            padding-left: 4px; 
+            color: var(--text-secondary);
+        }
+        .markdown-body code { 
+            background: var(--bg-primary); 
+            padding: 3px 8px; 
+            border-radius: 6px; 
+            font-family: 'JetBrains Mono', Consolas, monospace; 
+            font-size: 0.85em; 
+            color: #10b981;
+            border: 1px solid var(--border-color);
+        }
+        .markdown-body pre { 
+            background: var(--bg-primary); 
+            padding: 16px; 
+            border-radius: var(--radius-md); 
+            overflow-x: auto; 
+            margin: 14px 0; 
+            border: 1px solid var(--border-color);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .markdown-body pre code { 
+            background: none; 
+            padding: 0; 
+            color: var(--text-primary); 
+            border: none;
+        }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { 
+            margin: 20px 0 10px; 
+            color: var(--text-primary); 
+            font-weight: 700; 
+            line-height: 1.3; 
+        }
+        .markdown-body h1 { font-size: 1.5rem; }
+        .markdown-body h2 { 
+            font-size: 1.25rem; 
+            border-bottom: 2px solid var(--border-color); 
+            padding-bottom: 8px;
+        }
+        .markdown-body h3 { font-size: 1.1rem; }
+        .markdown-body h4 { 
+            font-size: 0.95rem; 
+            color: var(--accent-blue);
+        }
+        .markdown-body hr { 
+            border: none; 
+            border-top: 1px solid var(--border-color); 
+            margin: 20px 0; 
+        }
+        .markdown-body strong { 
+            color: var(--text-primary); 
+            font-weight: 700; 
+        }
+        .markdown-body em { 
+            color: var(--text-secondary); 
+        }
+        .markdown-body a { 
+            color: var(--accent-blue); 
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all var(--transition-fast);
+        }
+        .markdown-body a:hover { 
+            text-decoration: none;
+            border-bottom-color: var(--accent-blue);
+        }
+        .markdown-body blockquote { 
+            border-left: 4px solid var(--accent-blue); 
+            padding: 12px 18px; 
+            margin: 14px 0; 
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, transparent 100%);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0; 
+            color: var(--text-secondary); 
+        }
+        .markdown-body blockquote p { margin: 4px 0; }
+        .markdown-body table { 
+            border-collapse: collapse; 
+            margin: 16px 0; 
+            font-size: 0.85rem; 
+            max-width: 100%; 
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+        .markdown-body th, .markdown-body td { 
+            padding: 10px 14px; 
+            border: 1px solid var(--border-color); 
+            text-align: left; 
+        }
+        .markdown-body th { 
+            background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-primary) 100%);
+            color: var(--accent-blue); 
+            font-weight: 600; 
+        }
+        .markdown-body tbody tr:nth-child(even) { 
+            background: rgba(26, 35, 50, 0.5); 
+        }
+        .markdown-body tbody tr:hover { 
+            background: rgba(59, 130, 246, 0.08);
+        }
+
+        /* === Typing Indicator === */
+        .typing-indicator { 
+            display: inline-flex; 
+            gap: 6px; 
+            padding: 14px 20px; 
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
+        }
+        .typing-indicator span { 
+            width: 8px; 
+            height: 8px; 
+            background: var(--accent-blue); 
+            border-radius: 50%; 
+            animation: bounce 1.4s infinite ease-in-out; 
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { 
+                transform: scale(0.6);
+                opacity: 0.5;
+            }
+            40% { 
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* === Input Container === */
+        .input-container {
+            display: flex;
+            gap: 12px;
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            transition: all var(--transition-normal);
+        }
+        .input-container:focus-within {
+            box-shadow: var(--shadow-glow);
+        }
+        .input-container textarea { 
+            flex: 1; 
+            background: var(--bg-primary); 
+            border: 1px solid var(--border-color); 
+            border-radius: var(--radius-md); 
+            padding: 14px 18px; 
+            color: var(--text-primary); 
+            font-size: 0.95rem; 
+            outline: none; 
+            resize: none; 
+            font-family: inherit; 
+            min-height: 60px; 
+            max-height: 200px; 
+            line-height: 1.6; 
+            display: block;
+            transition: all var(--transition-fast);
+        }
+        .input-container textarea:focus { 
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .input-container textarea::placeholder {
+            color: var(--text-muted);
+        }
+        .input-container button { 
+            background: var(--accent-gradient); 
+            border: none; 
+            border-radius: var(--radius-md); 
+            padding: 0 32px; 
+            color: white; 
+            font-weight: 600; 
+            font-size: 0.9rem;
+            cursor: pointer; 
+            transition: all var(--transition-normal);
+            box-shadow: var(--shadow-sm);
+            white-space: nowrap;
+        }
+        .input-container button:hover { 
+            background: var(--accent-gradient-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .input-container button:active {
+            transform: translateY(0);
+        }
+        .input-container button:disabled { 
+            opacity: 0.5; 
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: none;
+        }
+        .input-container .cancel-btn { 
+            background: var(--danger-gradient); 
+        }
+        .input-container .cancel-btn:hover { 
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* === Sidebar Typing Dot === */
+        .sidebar-item .typing-dot {
+            color: var(--accent-blue); 
+            font-size: 0.5rem; 
+            flex-shrink: 0;
+            animation: pulse 1.2s ease-in-out infinite;
+            line-height: 1;
+        }
+        @keyframes pulse { 
+            0%, 100% { opacity: 1; transform: scale(1); } 
+            50% { opacity: 0.4; transform: scale(0.8); } 
+        }
+
+        /* === Animations === */
+        @keyframes fadeInUp { 
+            from { 
+                opacity: 0; 
+                transform: translateY(12px); 
+            } 
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            } 
+        }
+
+        /* === Empty State === */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 40px;
+        }
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+        .empty-state-text {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+        .empty-state-hint {
+            font-size: 0.85rem;
+        }
+
+        /* === Responsive === */
+        @media (max-width: 768px) {
+            .sidebar { 
+                display: none; 
+            }
+            .message-content { 
+                max-width: 92%; 
+            }
+            .input-container { 
+                flex-direction: column; 
+            }
+            .input-container button { 
+                padding: 14px; 
+            }
+            .markdown-body table { 
+                display: block; 
+                overflow-x: auto; 
+                white-space: nowrap; 
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" onclick="newChat()">
+                    <span>✨</span>
+                    <span>Новый чат</span>
+                </button>
+            </div>
+            <div class="sidebar-list" id="threadList"></div>
+        </div>
+        <div class="main-area">
+            <div class="top-bar">
+                <div></div>
+                <div class="thread-id" id="threadIdLabel">
+                    <span id="threadIdText">—</span>
+                    <button class="export-btn" id="exportBtn" title="Скачать историю">⬇</button>
+                </div>
+            </div>
+            <div class="messages" id="messages">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-state-icon">💬</div>
+                    <div class="empty-state-text">Начните новый диалог</div>
+                    <div class="empty-state-hint">Задайте вопрос об инциденте или опишите проблему</div>
+                </div>
+            </div>
+            <div class="input-container">
+                <textarea id="messageInput" placeholder="Введите сообщение... (Enter для отправки, Shift+Enter для новой строки)" rows="1"></textarea>
+                <button onclick="sendMessage()" id="sendBtn">📤 Отправить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({ breaks: true, gfm: true });
+        }
+
+        const API_BASE = '';
+        let userId = null;
+        let threadId = null;
+
+        // ── Per-thread state ──────────────────────────────────────────
+        const pendingRequests = new Map();
+        const typingDots = new Map();
+        // Tracks which thread is currently being processed (for cancel & button state)
+        let processingThreadId = null;
+
+        // ---------- Session ----------
+        function generateUserId() {
+            return 'user_' + Math.random().toString(36).substring(2, 12);
+        }
+
+        function loadSession() {
+            userId = localStorage.getItem('ai_user_id');
+            if (!userId) {
+                userId = generateUserId();
+                localStorage.setItem('ai_user_id', userId);
+            }
+            threadId = localStorage.getItem('ai_thread_id');
+        }
+
+        function updateThreadLabel() {
+            const textEl = document.getElementById('threadIdText');
+            const exportBtn = document.getElementById('exportBtn');
+            if (threadId) {
+                textEl.textContent = `thread: ${threadId}`;
+                exportBtn.style.display = '';
+            } else {
+                textEl.textContent = '—';
+                exportBtn.style.display = 'none';
+            }
+        }
+
+        async function apiFetch(path, options = {}) {
+            const controller = options._controller || null;
+            const signal = options.signal || (controller ? controller.signal : undefined);
+            const response = await fetch(`${API_BASE}${path}`, {
+                ...options,
+                signal,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-ID': userId,
+                    ...(options.headers || {})
+                }
+            });
+            if (!response.ok) {
+                if (response.status === 499) return null; // client abort
+                const errorText = await response.text().catch(() => '');
+                throw new Error(`HTTP ${response.status}${errorText ? ': ' + errorText : ''}`);
+            }
+            return response;
+        }
+
+        async function createThread() {
+            const response = await apiFetch('/api/v1/threads', { method: 'POST' });
+            if (!response) return null;
+            const data = await response.json();
+            threadId = data.thread_id;
+            localStorage.setItem('ai_thread_id', threadId);
+            updateThreadLabel();
+            return threadId;
+        }
+
+        // ---------- Sidebar ----------
+        function highlightThread(activeId) {
+            document.querySelectorAll('.sidebar-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.threadId === activeId);
+            });
+        }
+
+        function renderThreadList() {
+            // Re-fetch and rebuild sidebar
+            apiFetch('/api/v1/threads')
+                .then(async res => {
+                    if (!res) return;
+                    const data = await res.json();
+                    const list = document.getElementById('threadList');
+                    list.innerHTML = '';
+                    if (!data.threads || data.threads.length === 0) {
+                        list.innerHTML = '<div style="padding:16px;color:#8b949e;font-size:0.85rem;">Нет чатов</div>';
+                        return;
+                    }
+                    const fragment = document.createDocumentFragment();
+                    data.threads.forEach(t => {
+                        const item = document.createElement('div');
+                        item.className = 'sidebar-item' + (t.id === threadId ? ' active' : '');
+                        item.dataset.threadId = t.id;
+                        item.title = t.created_at || '';
+
+                        // thread icon
+                        const icon = document.createElement('span');
+                        icon.className = 'thread-icon';
+                        icon.textContent = '💬';
+                        item.appendChild(icon);
+
+                        // name span
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'sidebar-item-name';
+                        nameSpan.textContent = t.id;
+                        item.appendChild(nameSpan);
+
+                        // typing dot
+                        if (typingDots.has(t.id)) {
+                            const dot = document.createElement('span');
+                            dot.className = 'typing-dot';
+                            dot.textContent = '●';
+                            item.appendChild(dot);
+                        }
+
+                        // delete button
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'sidebar-del-btn';
+                        delBtn.textContent = '✕';
+                        delBtn.title = 'Удалить диалог';
+                        delBtn.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            if (!confirm('Удалить этот диалог?')) return;
+                            try {
+                                await apiFetch(`/api/v1/threads/${t.id}`, { method: 'DELETE' });
+                                if (threadId === t.id) newChat();
+                                else renderThreadList();
+                            } catch (e) {
+                                console.error('delete error:', e);
+                            }
+                        });
+                        item.appendChild(delBtn);
+
+                        item.addEventListener('click', (e) => {
+                            if (e.target.closest('.sidebar-del-btn')) return;
+                            switchThread(t.id);
+                        });
+
+                        fragment.appendChild(item);
+                    });
+                    // Restore typing dots added via DOM before full re-render
+                    for (const tid of typingDots.keys()) {
+                        const existingItem = document.querySelector(`.sidebar-item[data-thread-id="${tid}"]`);
+                        if (existingItem && !findDotInSidebarItem(existingItem)) {
+                            const dot = document.createElement('span');
+                            dot.className = 'typing-dot';
+                            dot.textContent = '●';
+                            const delBtn = existingItem.querySelector('.sidebar-del-btn');
+                            if (delBtn) existingItem.insertBefore(dot, delBtn);
+                            else existingItem.appendChild(dot);
+                        }
+                    }
+                    list.innerHTML = '';
+                    list.appendChild(fragment);
+                })
+                .catch(e => console.error('renderThreadList error:', e));
+        }
+
+        function switchThread(newThreadId) {
+            if (newThreadId === threadId) return;
+            threadId = newThreadId;
+            localStorage.setItem('ai_thread_id', threadId);
+            updateThreadLabel();
+            highlightThread(threadId);
+            restoreDraft(threadId);
+            // Update send button for the newly active thread
+            updateSendButton();
+            const msgs = document.getElementById('messages');
+            msgs.innerHTML = `
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-state-icon">⏳</div>
+                    <div class="empty-state-text">Загружаем диалог...</div>
+                </div>
+            `;
+            loadMessages().catch(() => {
+                msgs.innerHTML = `
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-state-icon">❌</div>
+                        <div class="empty-state-text">Ошибка загрузки</div>
+                    </div>
+                `;
+            });
+        }
+
+        async function loadMessages() {
+            if (!threadId) return;
+            try {
+                const res = await apiFetch(`/api/v1/threads/${threadId}/messages`);
+                if (!res) return;
+                const data = await res.json();
+                const messagesDiv = document.getElementById('messages');
+                messagesDiv.innerHTML = '';
+                if ((data.messages || []).length === 0) {
+                    messagesDiv.innerHTML = `
+                        <div class="empty-state" id="emptyState">
+                            <div class="empty-state-icon">💬</div>
+                            <div class="empty-state-text">В этом чате пока нет сообщений</div>
+                            <div class="empty-state-hint">Начните диалог, задав вопрос об инциденте</div>
+                        </div>
+                    `;
+                } else {
+                    (data.messages || []).forEach(m => addMessage(m.role, m.content, m.artifact));
+                }
+                // Если для этого треда есть активный запрос — показать typing индикатор
+                if (pendingRequests.has(threadId)) {
+                    showChatTyping();
+                }
+            } catch (e) {
+                console.error('loadMessages error:', e);
+            }
+        }
+
+        // ---------- Export ----------
+        async function exportHistory() {
+            if (!threadId) return;
+            const exportBtn = document.getElementById('exportBtn');
+            try {
+                exportBtn.disabled = true;
+                const res = await apiFetch(`/api/v1/threads/${threadId}/messages`);
+                if (!res) return;
+                const data = await res.json();
+                if (!data.messages || data.messages.length === 0) {
+                    alert('В этом диалоге пока нет сообщений для скачивания.');
+                    return;
+                }
+
+                const lines = [
+                    `thread: ${threadId}`,
+                    `exported: ${new Date().toISOString()}`,
+                    `messages: ${data.messages.length}`,
+                    ''.padEnd(40, '-'),
+                    '',
+                    ...data.messages.map(m => `${m.role === 'user' ? 'user' : 'ai'}: ${m.content}`)
+                ];
+                const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `thread_${threadId}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 0);
+            } catch (e) {
+                console.error('exportHistory error:', e);
+                alert(`Не удалось скачать историю: ${e.message}`);
+            } finally {
+                exportBtn.disabled = false;
+            }
+        }
+
+        // ---------- Messages ----------
+        function renderMarkdown(content) {
+            let html;
+            if (typeof marked !== 'undefined' && marked.parse) {
+                try {
+                    html = marked.parse(content);
+                } catch (e) {
+                    html = escapeHtml(content).replace(/\n/g, '<br>');
+                }
+            } else {
+                html = escapeHtml(content).replace(/\n/g, '<br>');
+            }
+            return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(html) : html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function addMessage(role, content, artifact) {
+            const messagesDiv = document.getElementById('messages');
+            
+            // Скрываем empty state при добавлении первого сообщения
+            const emptyState = document.getElementById('emptyState');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role === 'ai' ? 'assistant' : role}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content markdown-body';
+
+            if (role === 'assistant' || role === 'ai') {
+                if (artifact && artifact.html) {
+                    // Показываем только artifact — это уже готовое HTML-представление
+                    // (таблица/карточки), текстовое summary для LLM здесь избыточно.
+                    contentDiv.innerHTML = typeof DOMPurify !== 'undefined'
+                        ? DOMPurify.sanitize(artifact.html)
+                        : artifact.html;
+                } else {
+                    contentDiv.innerHTML = renderMarkdown(content);
+                    contentDiv.querySelectorAll('pre code').forEach(block => {
+                        if (typeof hljs !== 'undefined') hljs.highlightElement(block);
+                    });
+                }
+            } else {
+                contentDiv.textContent = content;
+            }
+
+            msgDiv.appendChild(contentDiv);
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // ── Per-thread typing indicator (dots on sidebar) ─────────────
+        // Мы не делаем fetch для обновления точек — это race condition с hideTypingDot.
+        // showTypingDot/hideTypingDot работают напрямую с DOM sidebar-элемента.
+        function getSidebarItem(threadId) {
+            return document.querySelector(`.sidebar-item[data-thread-id="${threadId}"]`);
+        }
+        function findDotInSidebarItem(item) {
+            return item ? item.querySelector('.typing-dot') : null;
+        }
+
+        /**
+         * Shows a typing-dot on the sidebar for `threadId`.
+         * The dot is only visible when the user is NOT actively viewing that thread.
+         * If the user switches away while a request is in-flight, the dot stays.
+         */
+        function showTypingDot(threadId) {
+            if (typingDots.has(threadId)) return;
+            typingDots.set(threadId, true);
+            // Don't show chat-area typing for side threads — we use sidebar dots
+            // Local DOM update — no fetch
+            const item = getSidebarItem(threadId);
+            if (!item) {
+                // Sidebar not yet rendered or thread not in list — fall back to full render
+                renderThreadList();
+                return;
+            }
+            if (!findDotInSidebarItem(item)) {
+                const dot = document.createElement('span');
+                dot.className = 'typing-dot';
+                dot.textContent = '●';
+                // Insert before the delete button (last child among controls)
+                const delBtn = item.querySelector('.sidebar-del-btn');
+                if (delBtn) item.insertBefore(dot, delBtn);
+                else item.appendChild(dot);
+            }
+        }
+
+        /**
+         * Hides the typing-dot for `threadId` — called when the request completes (success or error).
+         */
+        function hideTypingDot(threadId) {
+            typingDots.delete(threadId);
+            // Local DOM update — direct removal, no fetch
+            const item = getSidebarItem(threadId);
+            if (item) {
+                const dot = findDotInSidebarItem(item);
+                if (dot) dot.remove();
+            }
+            // Also remove if thread is not in current sidebar (partial page)
+            renderThreadList();
+        }
+
+        let chatTypingEl = null;
+        function showChatTyping() {
+            hideChatTyping();
+            const messagesDiv = document.getElementById('messages');
+            chatTypingEl = document.createElement('div');
+            chatTypingEl.className = 'message assistant';
+            chatTypingEl.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            messagesDiv.appendChild(chatTypingEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        function hideChatTyping() {
+            if (chatTypingEl) {
+                chatTypingEl.remove();
+                chatTypingEl = null;
+            }
+        }
+
+        // ── Drafts per thread ─────────────────────────────────────────
+        const drafts = new Map();
+
+        function saveDraft(threadId) {
+            const input = document.getElementById('messageInput');
+            drafts.set(threadId, input.value);
+        }
+
+        function restoreDraft(threadId) {
+            const input = document.getElementById('messageInput');
+            const draft = drafts.get(threadId);
+            if (draft !== undefined) {
+                input.value = draft;
+                autoResizeTextarea(input);
+            } else {
+                input.value = '';
+            }
+        }
+
+        // ── Cancel / Send ─────────────────────────────────────────────
+        function updateSendButton() {
+            const sendBtn = document.getElementById('sendBtn');
+            const isProcessingCurrent = processingThreadId !== null && processingThreadId === threadId;
+            const hasPending = threadId && pendingRequests.has(threadId);
+
+            if (isProcessingCurrent || hasPending) {
+                sendBtn.textContent = '✕ Отмена';
+                sendBtn.className = 'cancel-btn';
+                sendBtn.onclick = () => cancelCurrentRequest(processingThreadId || threadId);
+                sendBtn.disabled = false;
+            } else {
+                sendBtn.textContent = '📤 Отправить';
+                sendBtn.className = '';
+                sendBtn.onclick = sendMessage;
+                sendBtn.disabled = false;
+            }
+        }
+
+        function cancelCurrentRequest(targetTid) {
+            const controller = pendingRequests.get(targetTid);
+            if (controller) {
+                controller.abort();
+                pendingRequests.delete(targetTid);
+            }
+            hideTypingDot(targetTid);
+            processingThreadId = null;
+            hideChatTyping();
+            updateSendButton();
+        }
+
+        let isCreatingThread = false;
+
+        async function sendMessage() {
+            if (!threadId) {
+                if (isCreatingThread) return;
+                isCreatingThread = true;
+                try {
+                    const tid = await createThread();
+                    if (!tid) {
+                        const messagesDiv = document.getElementById('messages');
+                        const emptyState = document.getElementById('emptyState');
+                        if (emptyState) emptyState.remove();
+                        
+                        const msgDiv = document.createElement('div');
+                        msgDiv.className = 'message assistant';
+                        const contentDiv = document.createElement('div');
+                        contentDiv.className = 'message-content markdown-body';
+                        contentDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+                        contentDiv.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                        contentDiv.style.color = '#fca5a5';
+                        contentDiv.textContent = '❌ Не удалось создать сессию. Попробуйте обновить страницу.';
+                        msgDiv.appendChild(contentDiv);
+                        messagesDiv.appendChild(msgDiv);
+                        return;
+                    }
+                } catch (e) {
+                    const messagesDiv = document.getElementById('messages');
+                    const emptyState = document.getElementById('emptyState');
+                    if (emptyState) emptyState.remove();
+                    
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = 'message assistant';
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'message-content markdown-body';
+                    contentDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+                    contentDiv.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                    contentDiv.style.color = '#fca5a5';
+                    contentDiv.textContent = '❌ Не удалось создать сессию. Попробуйте обновить страницу.';
+                    msgDiv.appendChild(contentDiv);
+                    messagesDiv.appendChild(msgDiv);
+                    return;
+                } finally {
+                    isCreatingThread = false;
+                }
+            }
+
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Check if already pending for this thread
+            if (pendingRequests.has(threadId)) {
+                return;
+            }
+
+            // Save draft for the next thread switch
+            saveDraft(threadId);
+
+            // Capture originating thread at send time
+            const targetThreadId = threadId;
+            processingThreadId = targetThreadId;
+
+            // UI: show typing dot on the active thread
+            showTypingDot(targetThreadId);
+
+            addMessage('user', text);
+            showChatTyping();
+
+            // Clear input immediately
+            input.value = '';
+            autoResizeTextarea(input);
+            // Clear draft for this thread so switching away and back won't restore the sent message
+            drafts.set(targetThreadId, '');
+
+            // UI: show cancel button for the processing thread
+            const controller = new AbortController();
+            pendingRequests.set(targetThreadId, controller);
+            updateSendButton();
+
+            try {
+                const response = await apiFetch(`/api/v1/threads/${targetThreadId}/messages`, {
+                    method: 'POST',
+                    body: JSON.stringify({ message: text }),
+                    _controller: controller
+                });
+
+                // Check if we aborted
+                if (!response) {
+                    return;
+                }
+
+                const data = await response.json();
+
+                // Always remove typing dot on the target thread
+                hideTypingDot(targetThreadId);
+
+                // Only write response if we're still on this thread
+                if (threadId === targetThreadId) {
+                    hideChatTyping();
+                    addMessage('assistant', data.response, data.artifact);
+                }
+
+                renderThreadList();
+            } catch (err) {
+                hideChatTyping();
+                hideTypingDot(targetThreadId);
+                if (err.name === 'AbortError') {
+                    return;
+                }
+                if (threadId === targetThreadId) {
+                    // Скрываем empty state если есть
+                    const emptyState = document.getElementById('emptyState');
+                    if (emptyState) emptyState.remove();
+                    
+                    const messagesDiv = document.getElementById('messages');
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = 'message assistant';
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'message-content markdown-body';
+                    contentDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+                    contentDiv.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                    contentDiv.style.color = '#fca5a5';
+                    contentDiv.textContent = `❌ Ошибка: ${err.message}`;
+                    msgDiv.appendChild(contentDiv);
+                    messagesDiv.appendChild(msgDiv);
+                }
+                renderThreadList();
+            } finally {
+                pendingRequests.delete(targetThreadId);
+                processingThreadId = null;
+                updateSendButton();
+                // Focus input on the current thread (not necessarily targetThreadId)
+                const currentInput = document.getElementById('messageInput');
+                if (threadId === targetThreadId) {
+                    currentInput.focus();
+                }
+            }
+        }
+
+        function newChat() {
+            // Cancel any pending on current thread
+            if (threadId) {
+                const controller = pendingRequests.get(threadId);
+                if (controller) {
+                    controller.abort();
+                    pendingRequests.delete(threadId);
+                }
+                hideTypingDot(threadId);
+            }
+            processingThreadId = null;
+
+            threadId = null;
+            localStorage.removeItem('ai_thread_id');
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = `
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-state-icon">💬</div>
+                    <div class="empty-state-text">Начните новый диалог</div>
+                    <div class="empty-state-hint">Задайте вопрос об инциденте или опишите проблему</div>
+                </div>
+            `;
+            updateThreadLabel();
+            highlightThread(null);
+            // Clear input
+            const input = document.getElementById('messageInput');
+            input.value = '';
+            autoResizeTextarea(input);
+            updateSendButton();
+            renderThreadList();
+        }
+
+        function autoResizeTextarea(el) {
+            el.style.height = 'auto';
+            const minH = parseInt(getComputedStyle(el).minHeight) || 76;
+            const maxH = parseInt(getComputedStyle(el).maxHeight) || 240;
+            el.style.height = Math.max(Math.min(el.scrollHeight, maxH), minH) + 'px';
+        }
+
+        // ---------- Init ----------
+        document.addEventListener('DOMContentLoaded', () => {
+            const input = document.getElementById('messageInput');
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    sendMessage();
+                }
+            });
+            input.addEventListener('input', () => autoResizeTextarea(input));
+
+            document.getElementById('sendBtn').addEventListener('click', sendMessage);
+            document.getElementById('exportBtn').addEventListener('click', exportHistory);
+            document.querySelector('.sidebar-header button').addEventListener('click', newChat);
+
+            loadSession();
+            updateThreadLabel();
+            if (threadId) {
+                loadMessages();
+            }
+            renderThreadList();
+        });
+    })();
+    </script>
+</body>
+</html>
