@@ -5,8 +5,9 @@ import asyncio
 import json
 from pathlib import Path
 
-from memory.application import MemoryApplication
-from memory.settings import default_memory_settings
+from app.memory.application import MemoryApplication
+from app.memory.facade import MemoryFacade
+from app.memory.settings import MemorySettings, default_memory_settings
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,10 +40,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override vector dimension from settings.",
     )
 
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(
+        dest="command",
+        required=True,
+    )
 
-    commands.add_parser("health", help="Check database and vector tables.")
-    commands.add_parser("cleanup", help="Remove expired search snapshots.")
+    commands.add_parser(
+        "health",
+        help="Check database, vector tables and entity catalog.",
+    )
+    commands.add_parser(
+        "cleanup",
+        help="Remove expired, invalidated and failed search snapshots.",
+    )
+    commands.add_parser(
+        "rebuild-catalog",
+        help=(
+            "Rebuild DB entity catalog from persisted incidents."
+        ),
+    )
 
     backfill = commands.add_parser(
         "backfill-vectors",
@@ -83,103 +99,95 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def run(args: argparse.Namespace) -> int:
-    settings = default_memory_settings(args.project_root)
+    settings = _build_settings(args)
+    application = MemoryApplication(settings)
+    memory = MemoryFacade(application)
 
-    if args.database_path is not None:
-        settings = settings.__class__(
-            database_path=args.database_path,
-            schema_path=settings.schema_path,
-            migrations_path=settings.migrations_path,
-            embedding_model_path=(
-                args.embedding_model_path
-                or settings.embedding_model_path
-            ),
-            vector_dimension=(
-                args.vector_dimension
-                or settings.vector_dimension
-            ),
-            search_preview_limit=settings.search_preview_limit,
-            cleanup_interval_seconds=settings.cleanup_interval_seconds,
-            import_index_batch_size=settings.import_index_batch_size,
-            semantic_default_limit=settings.semantic_default_limit,
-        )
-    elif (
-        args.embedding_model_path is not None
-        or args.vector_dimension is not None
-    ):
-        settings = settings.__class__(
-            database_path=settings.database_path,
-            schema_path=settings.schema_path,
-            migrations_path=settings.migrations_path,
-            embedding_model_path=(
-                args.embedding_model_path
-                or settings.embedding_model_path
-            ),
-            vector_dimension=(
-                args.vector_dimension
-                or settings.vector_dimension
-            ),
-            search_preview_limit=settings.search_preview_limit,
-            cleanup_interval_seconds=settings.cleanup_interval_seconds,
-            import_index_batch_size=settings.import_index_batch_size,
-            semantic_default_limit=settings.semantic_default_limit,
-        )
-
-    app = MemoryApplication(settings)
-    await app.start()
+    await application.start()
 
     try:
-        if args.command == "health":
-            print(json.dumps(
-                await app.healthcheck(),
-                ensure_ascii=False,
-                indent=2,
-            ))
-            return 0
-
-        if args.command == "cleanup":
-            deleted = await app.search_results.cleanup_expired()
-            print(json.dumps(
-                {"deleted_search_results": deleted},
-                ensure_ascii=False,
-            ))
-            return 0
-
-        if args.command == "backfill-vectors":
-            result: dict[str, int] = {}
-
-            if args.entity in ("incidents", "all"):
-                result["incidents_processed"] = (
-                    await app.vector_backfill.backfill_incidents(
-                        batch_size=args.batch_size
-                    )
-                )
-
-            if args.entity in ("assignments", "all"):
-                result["assignments_processed"] = (
-                    await app.vector_backfill.backfill_assignments(
-                        batch_size=args.batch_size
-                    )
-                )
-
-            print(json.dumps(result, ensure_ascii=False, indent=2))
-            return 0
-
-        if args.command == "import-json":
-            report = await app.imports.import_json_file(
-                entity=args.entity,
-                file_path=args.file,
-                max_errors=args.max_errors,
-            )
-            print(report.model_dump_json(
-                ensure_ascii=False,
-                indent=2,
-            ))
-            return 0
-
-        raise RuntimeError(f"Unsupported command: {args.command}")
+        result = await _execute_command(
+            memory=memory,
+            args=args,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
     finally:
-        await app.stop()
+        await application.stop()
+
+
+async def _execute_command(
+    *,
+    memory: MemoryFacade,
+    args: argparse.Namespace,
+) -> dict[str, object]:
+    if args.command == "health":
+        return await memory.healthcheck()
+
+    if args.command == "cleanup":
+        deleted = await memory.cleanup_expired_search_results()
+        return {"deleted_search_results": deleted}
+
+    if args.command == "rebuild-catalog":
+        return await memory.rebuild_entity_catalog()
+
+    if args.command == "backfill-vectors":
+        return await _rebuild_vectors(
+            memory=memory,
+            entity=args.entity,
+            batch_size=args.batch_size,
+        )
+
+    if args.command == "import-json":
+        report = await memory.import_json_file(
+            entity=args.entity,
+            file_path=args.file,
+            max_errors=args.max_errors,
+        )
+        return report.model_dump(mode="json")
+
+    raise RuntimeError(f"Unsupported command: {args.command}")
+
+
+async def _rebuild_vectors(
+    *,
+    memory: MemoryFacade,
+    entity: str,
+    batch_size: int,
+) -> dict[str, object]:
+    if batch_size < 1:
+        raise ValueError("batch_size must be at least 1")
+
+    return await memory.rebuild_vector_indexes(
+        entity=entity,
+        batch_size=batch_size,
+    )
+
+
+def _build_settings(args: argparse.Namespace) -> MemorySettings:
+    current = default_memory_settings(args.project_root)
+
+    database_path = args.database_path or current.database_path
+    embedding_model_path = (
+        args.embedding_model_path
+        or current.embedding_model_path
+    )
+    vector_dimension = (
+        args.vector_dimension
+        or current.vector_dimension
+    )
+
+    return MemorySettings(
+        database_path=database_path,
+        schema_path=current.schema_path,
+        migrations_path=current.migrations_path,
+        embedding_model_path=embedding_model_path,
+        vector_dimension=vector_dimension,
+        search_preview_limit=current.search_preview_limit,
+        cleanup_interval_seconds=current.cleanup_interval_seconds,
+        import_index_batch_size=current.import_index_batch_size,
+        semantic_default_limit=current.semantic_default_limit,
+    )
 
 
 def main() -> None:
